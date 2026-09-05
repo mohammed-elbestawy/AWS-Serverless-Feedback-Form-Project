@@ -1,0 +1,43 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Feedback & Contact</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <main class="card">
+    <h1>Send us your feedback</h1>
+    <p class="subtitle"><span id="counter">0</span> messages received so far</p>
+
+    <form id="feedback-form" novalidate>
+      <label for="name">Name</label>
+      <input type="text" id="name" name="name" maxlength="200" required>
+
+      <label for="email">Email</label>
+      <input type="email" id="email" name="email" maxlength="200" required>
+
+      <label for="subject">Subject</label>
+      <input type="text" id="subject" name="subject" maxlength="200" required>
+
+      <label for="category">Category</label>
+      <select id="category" name="category" required>
+        <option value="general">General</option>
+        <option value="support">Support</option>
+        <option value="bug">Bug Report</option>
+        <option value="feedback">Feedback</option>
+      </select>
+
+      <label for="message">Message</label>
+      <textarea id="message" name="message" maxlength="2000" rows="5" required></textarea>
+
+      <button type="submit" id="submit-btn">Send Message</button>
+    </form>
+
+    <div id="status" class="status" role="status" aria-live="polite"></div>
+  </main>
+
+  <script src="script.js"></script>
+</body>
+</html>
