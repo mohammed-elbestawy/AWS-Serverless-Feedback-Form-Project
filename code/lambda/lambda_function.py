@@ -1,151 +1,111 @@
-"""
-Serverless Feedback & Contact Form — Lambda Function
-=====================================================
-Handles two endpoints:
-  POST /feedback  →  save message + send email via SNS
-  GET  /stats     →  return total message count
-
-Environment Variables required:
-  TABLE_NAME  = feedback-messages
-  TOPIC_ARN   = arn:aws:sns:us-east-1:XXXX:feedback-notifications
-"""
-
 import json
 import os
+import re
 import uuid
 import boto3
 from datetime import datetime
 
-# ── AWS clients ────────────────────────────────────────────
-dynamodb  = boto3.resource("dynamodb")
-sns       = boto3.client("sns")
+dynamodb = boto3.resource("dynamodb")
+sns = boto3.client("sns")
 
-TABLE_NAME = os.environ["TABLE_NAME"]   # feedback-messages
-TOPIC_ARN  = os.environ["TOPIC_ARN"]   # SNS topic ARN
-
+TABLE_NAME     = os.environ["TABLE_NAME"]
+TOPIC_ARN      = os.environ["TOPIC_ARN"]
+ALLOWED_ORIGIN = os.environ.get("ALLOWED_ORIGIN", "*")
 table = dynamodb.Table(TABLE_NAME)
 
+EMAIL_RE = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
+ALLOWED_CATEGORIES = {"general", "support", "bug", "feedback"}
+MAX_MESSAGE_LENGTH = 2000
+MAX_SHORT_FIELD_LENGTH = 200
 
-# ══════════════════════════════════════════════════════════
-#  MAIN HANDLER
-# ══════════════════════════════════════════════════════════
+
 def lambda_handler(event, context):
-    method = event.get("httpMethod", "")
-    path   = event.get("path", "")
-
-    # ── Route: POST /feedback ──────────────────────────────
-    if method == "POST" and path == "/feedback":
-        return handle_submit(event)
-
-    # ── Route: GET /stats ──────────────────────────────────
-    if method == "GET" and path == "/stats":
-        return handle_stats()
-
-    return _response(404, {"error": "Endpoint not found"})
-
-
-# ══════════════════════════════════════════════════════════
-#  POST /feedback  —  Save message & send email
-# ══════════════════════════════════════════════════════════
-def handle_submit(event):
     try:
-        # Parse body
-        raw  = event.get("body", "{}")
-        body = json.loads(raw) if isinstance(raw, str) else raw
+        method = event.get("httpMethod", "")
+        path   = event.get("path", "")
 
-        # Validate required fields
-        required = ["name", "email", "subject", "message"]
-        missing  = [f for f in required if not body.get(f, "").strip()]
-        if missing:
-            return _response(400, {
-                "error": f"Missing required fields: {', '.join(missing)}"
-            })
-
-        # Build record
-        message_id = str(uuid.uuid4())
-        record = {
-            "message_id": message_id,
-            "name":       body["name"].strip(),
-            "email":      body["email"].strip(),
-            "subject":    body["subject"].strip(),
-            "category":   body.get("category", "general"),
-            "message":    body["message"].strip(),
-            "status":     "new",
-            "created_at": datetime.utcnow().isoformat(),
-        }
-
-        # Save to DynamoDB
-        table.put_item(Item=record)
-
-        # Send email notification via SNS
-        _send_notification(record)
-
-        return _response(200, {
-            "message_id": message_id,
-            "message":    "Your message has been sent successfully!",
-        })
+        if method == "POST" and path == "/feedback":
+            return handle_feedback(event)
+        elif method == "GET" and path == "/stats":
+            return handle_stats()
+        else:
+            return _response(404, {"error": "Not found"})
 
     except Exception as e:
-        print(f"Error in handle_submit: {e}")
-        return _response(500, {"error": "Internal server error. Please try again."})
+        print(f"ERROR: {e}")
+        return _response(500, {"error": "Something went wrong. Please try again later."})
 
 
-# ══════════════════════════════════════════════════════════
-#  GET /stats  —  Return total message count
-# ══════════════════════════════════════════════════════════
-def handle_stats():
-    try:
-        result = table.scan(Select="COUNT")
-        total  = result.get("Count", 0)
-        return _response(200, {"total_messages": total})
-    except Exception as e:
-        print(f"Error in handle_stats: {e}")
-        return _response(500, {"error": str(e)})
+def handle_feedback(event):
+    body = event.get("body", "{}")
+    if isinstance(body, str):
+        body = json.loads(body)
 
+    required_fields = ["name", "email", "subject", "category", "message"]
+    missing = [f for f in required_fields if not str(body.get(f, "")).strip()]
+    if missing:
+        return _response(400, {"error": "Missing fields: " + ", ".join(missing)})
 
-# ══════════════════════════════════════════════════════════
-#  SNS Email Notification
-# ══════════════════════════════════════════════════════════
-def _send_notification(record):
-    """Sends an email to the site owner via SNS."""
-    subject = f"[FeedbackHub] New message: {record['subject']}"
+    name     = body["name"].strip()[:MAX_SHORT_FIELD_LENGTH]
+    email    = body["email"].strip()[:MAX_SHORT_FIELD_LENGTH]
+    subject  = body["subject"].strip()[:MAX_SHORT_FIELD_LENGTH]
+    category = body["category"].strip().lower()
+    message  = body["message"].strip()[:MAX_MESSAGE_LENGTH]
 
-    body = f"""
-You received a new message on FeedbackHub!
+    if not EMAIL_RE.match(email):
+        return _response(400, {"error": "Invalid email format"})
 
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-  From     : {record['name']}
-  Email    : {record['email']}
-  Category : {record['category']}
-  Subject  : {record['subject']}
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+    if category not in ALLOWED_CATEGORIES:
+        return _response(400, {"error": "Invalid category"})
 
-Message:
-{record['message']}
+    message_id = str(uuid.uuid4())
 
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-Message ID : {record['message_id']}
-Received   : {record['created_at']} UTC
-    """.strip()
+    table.put_item(Item={
+        "message_id": message_id,
+        "name":       name,
+        "email":      email,
+        "subject":    subject,
+        "category":   category,
+        "message":    message,
+        "created_at": datetime.utcnow().isoformat(),
+    })
 
-    sns.publish(
-        TopicArn=TOPIC_ARN,
-        Subject=subject,
-        Message=body,
+    notification_text = (
+        f"New feedback received\n\n"
+        f"From: {name} ({email})\n"
+        f"Category: {category}\n"
+        f"Subject: {subject}\n\n"
+        f"Message:\n{message}"
     )
 
+    try:
+        sns.publish(
+            TopicArn=TOPIC_ARN,
+            Subject=f"New Feedback: {subject}"[:100],
+            Message=notification_text,
+        )
+    except Exception as e:
+        print(f"SNS publish failed: {e}")
 
-# ══════════════════════════════════════════════════════════
-#  Helper: standard HTTP response
-# ══════════════════════════════════════════════════════════
-def _response(status_code, body_dict):
+    return _response(200, {
+        "message_id": message_id,
+        "message": "Your message has been sent successfully!",
+    })
+
+
+def handle_stats():
+    result = table.scan(Select="COUNT")
+    return _response(200, {
+        "total_messages": result.get("Count", 0),
+    })
+
+
+def _response(code, body):
     return {
-        "statusCode": status_code,
+        "statusCode": code,
         "headers": {
-            "Content-Type":                "application/json",
-            "Access-Control-Allow-Origin": "*",
-            "Access-Control-Allow-Methods": "GET,POST,OPTIONS",
-            "Access-Control-Allow-Headers": "Content-Type",
+            "Content-Type": "application/json",
+            "Access-Control-Allow-Origin": ALLOWED_ORIGIN
         },
-        "body": json.dumps(body_dict, ensure_ascii=False),
+        "body": json.dumps(body, ensure_ascii=False, default=str),
     }
