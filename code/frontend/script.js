@@ -1,4 +1,4 @@
-const API_URL = "https://rzygvr4d87.execute-api.eu-north-1.amazonaws.com/prod";
+const API_URL = "https://fexc6lgqdj.execute-api.eu-north-1.amazonaws.com/prod";
 
 const form = document.getElementById("feedback-form");
 const submitBtn = document.getElementById("submit-btn");
