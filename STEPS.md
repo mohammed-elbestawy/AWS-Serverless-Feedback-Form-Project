@@ -46,7 +46,6 @@ This sends an instant email to the site owner whenever a new message comes in.
 | Subscription protocol | Email |
 | Subscription status | Confirmed |
 
-![SNS topic](screenshots/02-sns-topic.png)
 ![SNS subscription confirmed](screenshots/02-sns-subscription.png)
 
 ---
