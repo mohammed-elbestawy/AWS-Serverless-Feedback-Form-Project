@@ -6,16 +6,19 @@
 ![Python](https://img.shields.io/badge/Python-3.12-3776AB?style=flat&logo=python&logoColor=white)
 ![Status](https://img.shields.io/badge/Status-Live%20Tested-brightgreen)
 
-## Table of Contents
-- [Overview](#overview)
-- [Architecture](#architecture)
-- [Features](#features)
-- [Live Test Result](#live-test-result)
-- [Skills Demonstrated](#skills-demonstrated)
-- [Security Improvement Over Reference Design](#security-improvement-over-reference-design)
-- [Possible Improvements](#possible-improvements)
-- [Cost Management](#cost-management)
-- [Repository Structure](#repository-structure)
+## 📋 Table of Contents
+
+| Section | Description |
+|---|---|
+| 🎯 [Overview](#overview) | What the project does |
+| 🏗 [Architecture](#architecture) | Service layers and data flow |
+| ✨ [Features](#features) | Core capabilities |
+| ✅ [Live Test Result](#live-test-result) | End-to-end test proof |
+| 🛠 [Skills Demonstrated](#skills-demonstrated) | What this project shows |
+| 🔒 [Security Improvement](#security-improvement-over-reference-design) | OAC vs public-bucket design |
+| 🚀 [Possible Improvements](#possible-improvements) | Future enhancements |
+| 💰 [Cost Management](#cost-management) | Billing decisions |
+| 📁 [Repository Structure](#repository-structure) | File layout |
 
 ## Overview
 
