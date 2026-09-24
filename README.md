@@ -1,37 +1,59 @@
+<div align="center">
+
 # 💬 Serverless Feedback & Contact Form
 
-> A fully-serverless, cloud-native contact form — no EC2, no servers. HTTPS delivery via CloudFront, backend logic via API Gateway and Lambda, data storage via DynamoDB, and real-time email alerts via SNS.
+A fully-serverless, cloud-native contact form — no EC2, no servers. HTTPS delivery via CloudFront, backend logic via API Gateway and Lambda, data storage via DynamoDB, and real-time email alerts via SNS.
 
-![AWS](https://img.shields.io/badge/AWS-Free%20Tier-FF9900?style=flat&logo=amazonaws&logoColor=white)
-![Python](https://img.shields.io/badge/Python-3.12-3776AB?style=flat&logo=python&logoColor=white)
-![Status](https://img.shields.io/badge/Status-Live%20Tested-brightgreen)
+![AWS](https://img.shields.io/badge/AWS-Free%20Tier-FF9900?style=flat-square&logo=amazonaws&logoColor=white)
+![Python](https://img.shields.io/badge/Python-3.12-3776AB?style=flat-square&logo=python&logoColor=white)
+![Status](https://img.shields.io/badge/Status-Live%20Tested-2EA44F?style=flat-square)
+![Region](https://img.shields.io/badge/Region-us--east--1-232F3E?style=flat-square)
 
-## 📋 Table of Contents
+</div>
 
-| Section | Description |
-|---|---|
-| 🎯 [Overview](#overview) | What the project does |
-| 🏗 [Architecture](#architecture) | Service layers and data flow |
-| ✨ [Features](#features) | Core capabilities |
-| ✅ [Live Test Result](#live-test-result) | End-to-end test proof |
-| 🛠 [Skills Demonstrated](#skills-demonstrated) | What this project shows |
-| 🔒 [Security Improvement](#security-improvement-over-reference-design) | OAC vs public-bucket design |
-| 🚀 [Possible Improvements](#possible-improvements) | Future enhancements |
-| 💰 [Cost Management](#cost-management) | Billing decisions |
-| 📁 [Repository Structure](#repository-structure) | File layout |
+---
 
-## Overview
+### Contents
+- 🎯 [The Problem](#problem)
+- 🏗️ [Architecture](#architecture)
+- ✨ [Features](#features)
+- 🔐 [Security Decisions](#security)
+- ✅ [Live Test Result](#test)
+- 🧠 [Skills Demonstrated](#skills)
+- 🚀 [Possible Improvements](#improvements)
+- 💰 [Cost Management](#cost)
+- 📚 [Documentation](#docs)
+- 📁 [Repository Structure](#structure)
 
-Users submit a message through a web form. The message is validated, saved to DynamoDB, and the site owner gets an instant email notification — all without managing a single server.
+---
 
-Every component below was designed, deployed, and verified by hand on a personal AWS account. Full step-by-step build log is in [`STEPS.md`](STEPS.md); design rationale for each decision is in [`CONCEPTS.md`](CONCEPTS.md).
+<a id="problem"></a>
+## 🎯 The Problem
 
-## Architecture
+Most simple serverless contact-form builds cut a corner or two to get working fast — this one was built to not cut them.
+
+| Risk / Inefficiency | How this project handles it |
+|:---|:---|
+| A typical serverless contact-form design makes the S3 frontend bucket public | CloudFront + Origin Access Control keeps the bucket fully private; only CloudFront can read it |
+| No real-time alert when a message comes in | SNS emails the site owner instantly on every submission |
+| Free-text fields (like category) are an easy injection surface | The category field is validated server-side against a fixed whitelist |
+| Detailed error messages returned to the client can leak internals | The client sees a generic error; the real exception is logged only to CloudWatch |
+
+---
+
+<a id="architecture"></a>
+## 🏗️ Architecture
+
+<div align="center">
 
 ![Architecture Diagram](screenshots/architecture-diagram.png)
 
+</div>
+
+<div align="center">
+
 | Layer | Service | Purpose |
-|---|---|---|
+|:---|:---|:---|
 | Frontend delivery | S3 (private) + CloudFront | Static site served over HTTPS, origin locked to CloudFront only |
 | API | API Gateway (REST) | `POST /feedback`, `GET /stats` |
 | Compute | Lambda (Python 3.12) | Validates input, writes to DynamoDB, publishes to SNS |
@@ -39,23 +61,52 @@ Every component below was designed, deployed, and verified by hand on a personal
 | Notifications | SNS | Emails the site owner on every new submission |
 | Security | IAM Role (least privilege) | Lambda permissions scoped to exact resource ARNs |
 
+</div>
+
 Region: `us-east-1`
 
-## Features
+---
 
-- **Real-time submission** with client and server-side validation
-- **Instant email notification** to the site owner via SNS
-- **Live message counter** on the page
-- **HTTPS everywhere** via CloudFront
-- **100% serverless** — zero EC2, zero servers, zero idle compute cost
+<a id="features"></a>
+## ✨ Features
 
-## Live Test Result
+- Real-time submission with client and server-side validation
+- Instant email notification to the site owner via SNS
+- Live message counter on the page
+- HTTPS everywhere via CloudFront
+- 100% serverless — zero EC2, zero servers, zero idle compute cost
+
+---
+
+<a id="security"></a>
+## 🔐 Security Decisions
+
+The original reference design most tutorials follow makes the S3 bucket public (`Block all public access` disabled, with a bucket policy allowing `Principal: *`). This project uses **CloudFront Origin Access Control (OAC)** instead:
+
+- The S3 bucket stays fully private — `Block all public access` remains **on**
+- Only CloudFront can read from the bucket, via a scoped bucket policy generated by AWS
+- A direct request to the S3 URL returns `Access Denied`
+- CORS is restricted to the actual CloudFront domain instead of `*`
+
+Same functionality, meaningfully smaller attack surface.
+
+---
+
+<a id="test"></a>
+## ✅ Live Test Result
 
 Successfully submitted a feedback message end-to-end — saved to DynamoDB, triggered an SNS email notification, and updated the live counter on the page.
 
+<div align="center">
+
 ![Full end-to-end test result](screenshots/10-fulltest-form.png)
 
-## Skills Demonstrated
+</div>
+
+---
+
+<a id="skills"></a>
+## 🧠 Skills Demonstrated
 
 - Serving a static site securely from a private S3 bucket using CloudFront Origin Access Control
 - Writing least-privilege IAM policies, including handling a service (SNS) that doesn't support resource-level restriction on all actions
@@ -63,40 +114,48 @@ Successfully submitted a feedback message end-to-end — saved to DynamoDB, trig
 - Restricting CORS to a specific origin instead of a wildcard
 - Designing graceful degradation — a failed SNS notification doesn't fail the user's request, since the message is already safely stored
 
-## Security Improvement Over Reference Design
+---
 
-The original reference design made the S3 bucket public (`Block all public access` disabled, with a bucket policy allowing `Principal: *`). This project instead uses **CloudFront Origin Access Control (OAC)**:
+<a id="improvements"></a>
+## 🚀 Possible Improvements
 
-- The S3 bucket stays fully private — `Block all public access` remains **on**
-- Only CloudFront can read from the bucket, via a scoped bucket policy generated by AWS
-- Anyone trying to access the S3 URL directly gets `Access Denied`
-- CORS is restricted to the actual CloudFront domain instead of `*`
+- Infrastructure as Code — Terraform for repeatable deployments
+- Rate limiting on API Gateway to prevent spam submissions
+- AWS WAF in front of CloudFront for basic abuse protection
+- Spam filtering using Amazon Comprehend on incoming messages
+- Admin dashboard with Cognito authentication to review submissions
 
-Same functionality, meaningfully smaller attack surface.
+---
 
-## Possible Improvements
-
-- **Infrastructure as Code** — Terraform for repeatable deployments
-- **Rate limiting** on API Gateway to prevent spam submissions
-- **AWS WAF** in front of CloudFront for basic abuse protection
-- **Spam filtering** using Amazon Comprehend on incoming messages
-- **Admin dashboard** with Cognito authentication to review submissions
-
-## Cost Management
+<a id="cost"></a>
+## 💰 Cost Management
 
 This architecture is 100% serverless — there are no EC2 instances or load balancers billed by the hour. Every service used (S3, CloudFront, API Gateway, Lambda, DynamoDB, SNS) has an always-free tier or near-zero idle cost, so all resources were left running after testing.
 
-## Repository Structure
+---
 
-    AWS-Serverless-Feedback-Form-Project/
-    ├── README.md
-    ├── STEPS.md              # Full step-by-step build log
-    ├── CONCEPTS.md           # Design rationale for each decision
-    ├── screenshots/
-    ├── code/
-    │   ├── lambda/lambda_function.py
-    │   └── frontend/
-    │       ├── index.html
-    │       ├── style.css
-    │       └── script.js
-    └── iam/feedback-lambda-policy.json
+<a id="docs"></a>
+## 📚 Documentation
+
+- **[STEPS.md](STEPS.md)** — full step-by-step build log
+- **[CONCEPTS.md](CONCEPTS.md)** — design rationale for each decision above
+
+---
+
+<a id="structure"></a>
+## 📁 Repository Structure
+
+```
+AWS-Serverless-Feedback-Form-Project/
+├── README.md
+├── STEPS.md
+├── CONCEPTS.md
+├── screenshots/
+├── code/
+│   ├── lambda/lambda_function.py
+│   └── frontend/
+│       ├── index.html
+│       ├── style.css
+│       └── script.js
+└── iam/feedback-lambda-policy.json
+```
